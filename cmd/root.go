@@ -295,18 +295,25 @@ func getIpv6Address(iface string, prioritySubnets []string) string {
 		"weighted":  weightedSubnets,
 	}).Debug("Found and weighted public IPv6 subnets")
 
-	var selectedSubnet string
+	var selectedSubnet net.IPNet
 	selectedWeight := maxWeight + 1
-	for subnet, weight := range weightedSubnets {
+	for _, subnet := range publicIpv6Subnets {
+		subnetStr := strings.TrimSuffix(subnet.String(), "/64")
+		weight := weightedSubnets[subnet.String()]
 		if weight < selectedWeight {
 			selectedSubnet = subnet
 			selectedWeight = weight
 		}
 	}
 
+	if selectedSubnet.IP == nil {
+		log.Fatal("No valid public IPv6 subnet found")
+	}
+
 	log.WithField("subnets", publicIpv6Subnets).Infof("Found %d public IPv6 subnets, selected %s", len(publicIpv6Subnets), selectedSubnet)
-	return selectedSubnet
+	return selectedSubnet.String()
 }
+
 
 
 func getZoneFromDomain(domain string) string {
