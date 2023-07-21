@@ -252,21 +252,21 @@ func getIpv6Address(iface string, prioritySubnets []string) string {
 		log.WithError(err).Fatal("Couldn't get interface addresses")
 	}
 
-	publicIpv6Addresses := []net.IP{}
+	publicIpv6Subnets := []net.IPNet{}
 	for _, addr := range addrs {
 		log.WithField("address", addr).Debug("Found address")
-		ip, _, err := net.ParseCIDR(addr.String())
+		ip, ipNet, err := net.ParseCIDR(addr.String())
 		if err != nil {
 			log.WithError(err).WithField("address", addr).Error("Couldn't parse address")
 			continue
 		}
-		if ip.IsGlobalUnicast() && ip.To4() == nil {
-			publicIpv6Addresses = append(publicIpv6Addresses, ip)
+		if ip.IsGlobalUnicast() && ip.To4() == nil && ipNet.IP.To16() != nil && ipNet.IP.DefaultMask() == nil && ipNet.IP.IsGlobalUnicast() {
+			publicIpv6Subnets = append(publicIpv6Subnets, *ipNet)
 		}
 	}
 
-	if len(publicIpv6Addresses) == 0 {
-		log.Fatal("No public IPv6 addresses found")
+	if len(publicIpv6Subnets) == 0 {
+		log.Fatal("No public IPv6 subnets found")
 	}
 
 	netPrioritySubnets := []net.IPNet{}
@@ -280,33 +280,34 @@ func getIpv6Address(iface string, prioritySubnets []string) string {
 	}
 
 	maxWeight := len(netPrioritySubnets)
-	weightedAddresses := make(map[string]int)
-	for _, ip := range publicIpv6Addresses {
-		weightedAddresses[ip.String()] = maxWeight
+	weightedSubnets := make(map[string]int)
+	for _, subnet := range publicIpv6Subnets {
+		weightedSubnets[subnet.String()] = maxWeight
 		for i, ipNet := range netPrioritySubnets {
-			if ipNet.Contains(ip) {
-				weightedAddresses[ip.String()] = i
+			if subnet.Contains(ipNet.IP) {
+				weightedSubnets[subnet.String()] = i
 				break
 			}
 		}
 	}
 	log.WithFields(log.Fields{
-		"addresses": publicIpv6Addresses,
-		"weighted":  weightedAddresses,
-	}).Debug("Found and weighted public IPv6 addresses")
+		"subnets": publicIpv6Subnets,
+		"weighted":  weightedSubnets,
+	}).Debug("Found and weighted public IPv6 subnets")
 
-	var selectedIp string
+	var selectedSubnet string
 	selectedWeight := maxWeight + 1
-	for ip, weight := range weightedAddresses {
+	for subnet, weight := range weightedSubnets {
 		if weight < selectedWeight {
-			selectedIp = ip
+			selectedSubnet = subnet
 			selectedWeight = weight
 		}
 	}
 
-	log.WithField("addresses", publicIpv6Addresses).Infof("Found %d public IPv6 addresses, selected %s", len(publicIpv6Addresses), selectedIp)
-	return selectedIp
+	log.WithField("subnets", publicIpv6Subnets).Infof("Found %d public IPv6 subnets, selected %s", len(publicIpv6Subnets), selectedSubnet)
+	return selectedSubnet
 }
+
 
 func getZoneFromDomain(domain string) string {
 	parts := strings.Split(domain, ".")
