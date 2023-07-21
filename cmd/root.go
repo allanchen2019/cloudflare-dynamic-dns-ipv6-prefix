@@ -298,7 +298,6 @@ func getIpv6Address(iface string, prioritySubnets []string) string {
 	var selectedSubnet net.IPNet
 	selectedWeight := maxWeight + 1
 	for _, subnet := range publicIpv6Subnets {
-		subnetStr := strings.TrimSuffix(subnet.String(), "/64")
 		weight := weightedSubnets[subnet.String()]
 		if weight < selectedWeight {
 			selectedSubnet = subnet
@@ -311,8 +310,9 @@ func getIpv6Address(iface string, prioritySubnets []string) string {
 	}
 
 	log.WithField("subnets", publicIpv6Subnets).Infof("Found %d public IPv6 subnets, selected %s", len(publicIpv6Subnets), selectedSubnet)
-	return selectedSubnet.String()
+	return strings.TrimSuffix(selectedSubnet.String(), "/64")
 }
+
 
 
 
